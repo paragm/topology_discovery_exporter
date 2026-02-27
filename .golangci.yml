@@ -1,0 +1,49 @@
+---
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errorlint
+    - gocritic
+    - goimports
+    - gosec
+    - misspell
+    - revive
+    - unconvert
+    - unparam
+
+linters-settings:
+  gocritic:
+    enabled-checks:
+      - boolExprSimplify
+      - equalFold
+      - hugeParam
+      - indexAlloc
+      - initClause
+      - nestingReduce
+      - ptrToRefParam
+      - rangeExprCopy
+      - truncateCmp
+      - unnamedResult
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: dot-imports
+      - name: error-naming
+      - name: error-return
+      - name: exported
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: range
+      - name: receiver-naming
+      - name: var-naming
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gosec
+        - errcheck

@@ -1,0 +1,54 @@
+---
+version: 2
+
+builds:
+  - binary: topology_discovery_exporter
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/prometheus/common/version.Version={{.Version}}
+      - -X github.com/prometheus/common/version.Revision={{.ShortCommit}}
+      - -X github.com/prometheus/common/version.Branch={{.Branch}}
+      - -X github.com/prometheus/common/version.BuildUser=goreleaser
+      - -X github.com/prometheus/common/version.BuildDate={{.Date}}
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - 386
+      - arm
+    goarm:
+      - "5"
+      - "6"
+      - "7"
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      topology_discovery_exporter-{{.Version}}.{{.Os}}-{{.Arch}}{{with .Arm}}v{{.}}{{end}}
+    files:
+      - LICENSE
+      - NOTICE
+      - examples/systemd/*
+      - examples/config.yml.example
+
+checksum:
+  name_template: sha256sums.txt
+
+release:
+  draft: false
+  prerelease: auto
+  name_template: "{{.Tag}}"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^chore:"
+      - "^ci:"

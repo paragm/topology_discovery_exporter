@@ -1,0 +1,27 @@
+# Topology Discovery Exporter configuration
+# Copy to config.yml and customize for your environment
+snmp_exporter_url: http://127.0.0.1:9116
+snmp_module: lldp_topology
+snmp_auth: your_snmp_auth_profile
+
+switches:
+  - name: switch-01
+    address: 192.0.2.1
+    role: access
+  - name: switch-02
+    address: 192.0.2.2
+    role: access
+  - name: gateway-01
+    address: 192.0.2.254
+    role: gateway
+
+prometheus:
+  reload_url: http://localhost:9090/-/reload
+  targets_dir: /etc/prometheus/targets
+
+base_target_files:
+  - node_exporter.yml
+  - user_sessions.yml
+
+db_path: /var/lib/topology/topology.db
+cache_dir: /var/lib/topology/cache

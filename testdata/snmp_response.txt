@@ -1,0 +1,25 @@
+# HELP lldpRemSysName The string value used to identify the system name of the remote system.
+# TYPE lldpRemSysName gauge
+lldpRemSysName{lldpRemTimeMark="0",lldpRemLocalPortNum="1",lldpRemIndex="1",lldpRemSysName="host01.example.net"} 1
+lldpRemSysName{lldpRemTimeMark="0",lldpRemLocalPortNum="2",lldpRemIndex="1",lldpRemSysName="host02.example.net"} 1
+lldpRemSysName{lldpRemTimeMark="0",lldpRemLocalPortNum="24",lldpRemIndex="1",lldpRemSysName="test-core-sw01"} 1
+# HELP lldpRemPortId The string value used to identify the port component associated with the remote system.
+# TYPE lldpRemPortId gauge
+lldpRemPortId{lldpRemTimeMark="0",lldpRemLocalPortNum="1",lldpRemIndex="1",lldpRemPortId="eth0"} 1
+lldpRemPortId{lldpRemTimeMark="0",lldpRemLocalPortNum="2",lldpRemIndex="1",lldpRemPortId="eth0"} 1
+lldpRemPortId{lldpRemTimeMark="0",lldpRemLocalPortNum="24",lldpRemIndex="1",lldpRemPortId="ge-0/0/1"} 1
+# HELP lldpRemPortDesc The string value used to identify the description of the given port associated with the remote system.
+# TYPE lldpRemPortDesc gauge
+lldpRemPortDesc{lldpRemTimeMark="0",lldpRemLocalPortNum="1",lldpRemIndex="1",lldpRemPortDesc="Network interface eth0"} 1
+lldpRemPortDesc{lldpRemTimeMark="0",lldpRemLocalPortNum="2",lldpRemIndex="1",lldpRemPortDesc="Network interface eth0"} 1
+lldpRemPortDesc{lldpRemTimeMark="0",lldpRemLocalPortNum="24",lldpRemIndex="1",lldpRemPortDesc="Uplink to core"} 1
+# HELP ifDescr A textual string containing information about the interface.
+# TYPE ifDescr gauge
+ifDescr{ifIndex="1",ifDescr="GigabitEthernet0/1"} 1
+ifDescr{ifIndex="2",ifDescr="GigabitEthernet0/2"} 1
+ifDescr{ifIndex="24",ifDescr="GigabitEthernet0/24"} 1
+# HELP ifOperStatus The current operational state of the interface.
+# TYPE ifOperStatus gauge
+ifOperStatus{ifIndex="1"} 1
+ifOperStatus{ifIndex="2"} 1
+ifOperStatus{ifIndex="24"} 1

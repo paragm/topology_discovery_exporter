@@ -1,0 +1,83 @@
+# Copyright 2026 Parag Mehta
+# Licensed under the Apache License, Version 2.0
+#
+# Common Makefile rules for Prometheus exporters.
+# Adapted from prometheus/prometheus/Makefile.common.
+# Include from project Makefile: include Makefile.common
+
+GO           ?= go
+GOFMT        ?= $(GO)fmt
+FIRST_GOPATH := $(firstword $(subst :, ,$(shell $(GO) env GOPATH)))
+GOVULNCHECK  := $(FIRST_GOPATH)/bin/govulncheck
+pkgs          = ./...
+
+.PHONY: common-style
+common-style:
+	@echo ">> checking code style"
+	@fmtRes=$$($(GOFMT) -d $$(git ls-files '*.go' ':!:vendor/*')); \
+	if [ -n "$${fmtRes}" ]; then \
+		echo "gofmt check failed:"; echo "$${fmtRes}"; \
+		exit 1; \
+	fi
+
+.PHONY: common-check_license
+common-check_license:
+	@echo ">> checking license headers"
+	@licRes=$$(for file in $$(git ls-files '*.go' ':!:vendor/*'); do \
+		awk 'NR<=3' $$file | grep -Eq "(Copyright|generated|GENERATED)" || echo $$file; \
+	done); \
+	if [ -n "$${licRes}" ]; then \
+		echo "license header missing:"; echo "$${licRes}"; \
+		exit 1; \
+	fi
+
+.PHONY: common-vet
+common-vet:
+	@echo ">> vetting code"
+	$(GO) vet $(pkgs)
+
+.PHONY: common-unused
+common-unused:
+	@echo ">> checking for unused/missing packages in go.mod"
+	$(GO) mod tidy
+	@git diff --exit-code -- go.sum go.mod
+
+.PHONY: common-yamllint
+common-yamllint:
+	@echo ">> running yamllint"
+ifeq (, $(shell command -v yamllint 2>/dev/null))
+	@echo "yamllint not installed, skipping"
+else
+	yamllint .
+endif
+
+.PHONY: common-govulncheck
+common-govulncheck: $(GOVULNCHECK)
+	@echo ">> running govulncheck"
+	$(GOVULNCHECK) ./...
+
+$(GOVULNCHECK):
+	@echo ">> installing govulncheck"
+	$(GO) install golang.org/x/vuln/cmd/govulncheck@latest
+
+.PHONY: common-deps
+common-deps:
+	@echo ">> downloading dependencies"
+	$(GO) mod download
+
+.PHONY: common-update-deps
+common-update-deps:
+	@echo ">> updating Go dependencies"
+	@for m in $$($(GO) list -mod=readonly -m -f '{{ if and (not .Indirect) (not .Main)}}{{.Path}}{{end}}' all); do \
+		$(GO) get $$m; \
+	done
+	$(GO) mod tidy
+
+.PHONY: common-format
+common-format:
+	@echo ">> formatting code"
+	$(GO) fmt $(pkgs)
+
+.PHONY: common-check
+common-check: common-style common-vet common-unused common-yamllint common-govulncheck
+	@echo ">> all common checks passed"

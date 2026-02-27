@@ -1,0 +1,31 @@
+[Unit]
+Description=Topology Discovery Exporter
+Wants=network-online.target
+After=network-online.target snmp-exporter.service
+
+[Service]
+Type=simple
+User=prometheus
+Group=prometheus
+EnvironmentFile=-/etc/default/topology-discovery-exporter
+ExecStart=/opt/topology/topology_discovery_exporter
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+ProtectHome=read-only
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/topology /etc/prometheus/targets
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,35 @@
+dist/
+topology_discovery_exporter
+*.exe
+coverage.out
+coverage.html
+*.db
+*.db-wal
+*.db-shm
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+deploy/config.yml
+deploy/*.env
+
+# Go build artifacts
+*.o
+*.a
+*.so
+_obj/
+_test/
+_cgo_defun.c
+_cgo_export.*
+_cgo_gotypes.go
+
+# Build directories
+.build/
+.release/
+.tarballs/
+
+# Vendor
+vendor/

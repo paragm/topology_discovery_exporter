@@ -1,0 +1,20 @@
+- targets:
+    - host01.example.net:9100
+  labels:
+    job: node
+    environment: production
+    datacenter: dc1
+
+- targets:
+    - host02.example.net:9100
+  labels:
+    job: node
+    environment: production
+    datacenter: dc1
+
+- targets:
+    - host03.example.net:9100
+  labels:
+    job: node
+    environment: staging
+    datacenter: dc1

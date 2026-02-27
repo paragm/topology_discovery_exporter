@@ -1,0 +1,69 @@
+name: Bug Report
+description: Report a bug in the Topology Discovery Exporter
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out the fields below.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: Describe the issue...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to see?
+      placeholder: Describe the expected behavior...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Start the exporter with config ...
+        2. Wait for discovery run
+        3. See error ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Exporter version
+      description: Output of `topology_discovery_exporter --version`
+      placeholder: "topology_discovery_exporter, version 1.2.0 ..."
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Output of `uname -a`
+      placeholder: "Linux prometheus 6.8.0-100-generic ..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: Run the exporter with `-log.level=debug` and paste relevant output.
+      render: text
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Paste your config.yml (redact SNMP credentials and internal IPs).
+      render: yaml

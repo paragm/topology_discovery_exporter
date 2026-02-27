@@ -1,0 +1,24 @@
+snmp_exporter_url: http://127.0.0.1:9116
+snmp_module: lldp_topology
+snmp_auth: test_community
+
+switches:
+  - name: test-core-sw01
+    address: 10.0.0.1
+    role: core
+  - name: test-access-sw01
+    address: 10.0.0.10
+    role: access
+  - name: test-access-sw02
+    address: 10.0.0.11
+    role: access
+
+prometheus:
+  reload_url: http://127.0.0.1:9090/-/reload
+  targets_dir: /tmp/test-targets
+
+base_target_files:
+  - /tmp/test-targets/nodes.yml
+
+db_path: /tmp/test-topology.db
+cache_dir: /tmp/test-topology-cache
