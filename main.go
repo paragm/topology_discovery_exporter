@@ -196,9 +196,9 @@ func main() {
 	defer database.Close()
 
 	if err := database.InitSchema(); err != nil {
-		database.Close()
+		database.Close()            //nolint:errcheck // best-effort close before exit
 		logger.Error("failed to initialize database schema", "error", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: explicit Close above handles cleanup
 	}
 
 	// Get hostname

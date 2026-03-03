@@ -33,7 +33,7 @@ func QuerySNMPExporter(ctx context.Context, snmpExporterURL, target, module, aut
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 
-	resp, err := snmpHTTPClient.Do(req)
+	resp, err := snmpHTTPClient.Do(req) //nolint:gosec // URL constructed from validated config, not user input
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request to SNMP exporter: %w", err)
 	}
