@@ -31,6 +31,117 @@ func securityHeadersMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// parseLogLevel converts a log level string to the corresponding slog.Level.
+func parseLogLevel(s string) slog.Level {
+	switch strings.ToLower(s) {
+	case "debug":
+		return slog.LevelDebug
+	case "warn":
+		return slog.LevelWarn
+	case "error":
+		return slog.LevelError
+	default:
+		return slog.LevelInfo
+	}
+}
+
+// envOverride sets dst to the environment variable value if set.
+func envOverride(dst *string, key string) {
+	if v := os.Getenv(key); v != "" {
+		*dst = v
+	}
+}
+
+// envOverridePort sets dst to ":value" from the environment variable if set.
+func envOverridePort(dst *string, key string) {
+	if v := os.Getenv(key); v != "" {
+		*dst = ":" + v
+	}
+}
+
+// setupRoutes registers all HTTP handlers on the given mux.
+func setupRoutes(mux *http.ServeMux, registry *prometheus.Registry, state *discovery.State, logger *slog.Logger) {
+	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
+	}))
+
+	mux.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "OK")
+	})
+	mux.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "OK")
+	})
+
+	mux.HandleFunc("/api/v1/topology", func(w http.ResponseWriter, r *http.Request) {
+		state.RLock()
+		defer state.RUnlock()
+
+		resp := map[string]interface{}{
+			"switches":          state.Switches,
+			"hosts":             state.Hosts,
+			"links":             state.Links,
+			"last_run_time":     state.LastRunTime,
+			"last_run_duration": state.LastRunDuration.String(),
+			"last_run_success":  state.LastRunSuccess,
+			"run_count":         state.RunCount,
+			"error_count":       state.ErrorCount,
+			"data_age_seconds":  time.Since(state.LastRunTime).Seconds(),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			logger.Error("failed to encode topology response", "error", err)
+		}
+	})
+
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<!DOCTYPE html>
+<html>
+<head><title>Topology Discovery Exporter</title></head>
+<body>
+<h1>Topology Discovery Exporter</h1>
+<p>Version: %s (branch: %s, revision: %s)</p>
+<ul>
+  <li><a href="/metrics">Metrics</a></li>
+  <li><a href="/api/v1/topology">Topology API</a></li>
+  <li><a href="/-/healthy">Health</a></li>
+</ul>
+</body>
+</html>`, version.Version, version.Branch, version.Revision)
+	})
+}
+
+// startDiscoveryLoop runs initial discovery then ticks at the given interval.
+func startDiscoveryLoop(ctx context.Context, cfg *discovery.Config, state *discovery.State, database *db.DB, logger *slog.Logger, interval time.Duration) {
+	logger.Info("running initial topology discovery")
+	if err := discovery.RunDiscovery(cfg, state, database, logger); err != nil {
+		logger.Error("initial discovery failed", "error", err)
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			logger.Info("running scheduled topology discovery")
+			if err := discovery.RunDiscovery(cfg, state, database, logger); err != nil {
+				logger.Error("scheduled discovery failed", "error", err)
+			}
+		case <-ctx.Done():
+			logger.Info("stopping discovery ticker")
+			return
+		}
+	}
+}
+
 func main() {
 	listenAddr := flag.String("web.listen-address", ":10042", "Address to listen on for web interface and telemetry")
 	configFile := flag.String("config.file", "/opt/topology/config.yml", "Path to configuration file")
@@ -45,33 +156,12 @@ func main() {
 	}
 
 	// Environment variable overrides
-	if v := os.Getenv("PORT"); v != "" {
-		*listenAddr = ":" + v
-	}
-	if v := os.Getenv("LOG_LEVEL"); v != "" {
-		*logLevel = v
-	}
-	if v := os.Getenv("CONFIG_FILE"); v != "" {
-		*configFile = v
-	}
-	if v := os.Getenv("DISCOVERY_INTERVAL"); v != "" {
-		*discoveryInterval = v
-	}
+	envOverridePort(listenAddr, "PORT")
+	envOverride(logLevel, "LOG_LEVEL")
+	envOverride(configFile, "CONFIG_FILE")
+	envOverride(discoveryInterval, "DISCOVERY_INTERVAL")
 
-	// Configure structured logging
-	var level slog.Level
-	switch strings.ToLower(*logLevel) {
-	case "debug":
-		level = slog.LevelDebug
-	case "warn":
-		level = slog.LevelWarn
-	case "error":
-		level = slog.LevelError
-	default:
-		level = slog.LevelInfo
-	}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
-
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: parseLogLevel(*logLevel)}))
 	logger.Info("starting topology discovery exporter", "version", version.Version)
 
 	// Parse discovery interval
@@ -106,9 +196,9 @@ func main() {
 	defer database.Close()
 
 	if err := database.InitSchema(); err != nil {
-		database.Close()
+		database.Close()            //nolint:errcheck // best-effort close before exit
 		logger.Error("failed to initialize database schema", "error", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: explicit Close above handles cleanup
 	}
 
 	// Get hostname
@@ -125,7 +215,6 @@ func main() {
 	// Create fresh Prometheus registry (no default Go metrics)
 	registry := prometheus.NewRegistry()
 
-	// Register MasterCollector
 	mc := collector.NewMasterCollector(&collector.Config{
 		Logger:         logger,
 		Hostname:       hostname,
@@ -136,97 +225,13 @@ func main() {
 	// Start background discovery ticker
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	go func() {
-		logger.Info("running initial topology discovery")
-		if err := discovery.RunDiscovery(cfg, state, database, logger); err != nil {
-			logger.Error("initial discovery failed", "error", err)
-		}
-
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				logger.Info("running scheduled topology discovery")
-				if err := discovery.RunDiscovery(cfg, state, database, logger); err != nil {
-					logger.Error("scheduled discovery failed", "error", err)
-				}
-			case <-ctx.Done():
-				logger.Info("stopping discovery ticker")
-				return
-			}
-		}
-	}()
+	go startDiscoveryLoop(ctx, cfg, state, database, logger, interval)
 
 	// HTTP server
 	mux := http.NewServeMux()
-
-	// Metrics endpoint
-	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
-		ErrorLog: slog.NewLogLogger(logger.Handler(), slog.LevelError),
-	}))
-
-	// Health endpoints
-	mux.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "OK")
-	})
-	mux.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "OK")
-	})
-
-	// JSON API for current topology
-	mux.HandleFunc("/api/v1/topology", func(w http.ResponseWriter, r *http.Request) {
-		state.RLock()
-		defer state.RUnlock()
-
-		resp := map[string]interface{}{
-			"switches":          state.Switches,
-			"hosts":             state.Hosts,
-			"links":             state.Links,
-			"last_run_time":     state.LastRunTime,
-			"last_run_duration": state.LastRunDuration.String(),
-			"last_run_success":  state.LastRunSuccess,
-			"run_count":         state.RunCount,
-			"error_count":       state.ErrorCount,
-			"data_age_seconds":  time.Since(state.LastRunTime).Seconds(),
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(resp); err != nil {
-			logger.Error("failed to encode topology response", "error", err)
-		}
-	})
-
-	// Landing page
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, `<!DOCTYPE html>
-<html>
-<head><title>Topology Discovery Exporter</title></head>
-<body>
-<h1>Topology Discovery Exporter</h1>
-<p>Version: %s (branch: %s, revision: %s)</p>
-<ul>
-  <li><a href="/metrics">Metrics</a></li>
-  <li><a href="/api/v1/topology">Topology API</a></li>
-  <li><a href="/-/healthy">Health</a></li>
-</ul>
-</body>
-</html>`, version.Version, version.Branch, version.Revision)
-	})
-
-	// Wrap mux with security headers middleware
+	setupRoutes(mux, registry, state, logger)
 	handler := securityHeadersMiddleware(mux)
 
-	// Graceful shutdown
 	server := &http.Server{
 		Addr:              *listenAddr,
 		Handler:           handler,

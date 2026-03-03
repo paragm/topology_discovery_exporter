@@ -58,7 +58,7 @@ type PrometheusConfig struct {
 
 // LoadConfig reads and parses the YAML configuration file.
 func LoadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // path from CLI flag, not user input
 	if err != nil {
 		return nil, fmt.Errorf("read config file: %w", err)
 	}

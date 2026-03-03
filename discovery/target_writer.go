@@ -38,7 +38,7 @@ func WriteEnrichedTargets(cfg *Config, hosts []HostConnection, switches []Switch
 		basePath := filepath.Join(targetsDir, baseFile)
 
 		// Read base target file
-		data, err := os.ReadFile(basePath)
+		data, err := os.ReadFile(basePath) //nolint:gosec // basePath from validated config
 		if err != nil {
 			return fmt.Errorf("read base target file %s: %w", basePath, err)
 		}
@@ -152,7 +152,7 @@ func writeAtomicYAML(path string, data interface{}) (bool, error) {
 	}
 
 	// Check if file already exists with same content
-	existing, err := os.ReadFile(path)
+	existing, err := os.ReadFile(path) //nolint:gosec // path validated against targetsDir
 	if err == nil && string(existing) == string(newContent) {
 		return false, nil
 	}
@@ -166,11 +166,11 @@ func writeAtomicYAML(path string, data interface{}) (bool, error) {
 	tmpPath := tmpFile.Name()
 
 	if _, err := tmpFile.Write(newContent); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
+		tmpFile.Close()   //nolint:gosec,errcheck // best-effort close on write failure
+		os.Remove(tmpPath) //nolint:gosec,errcheck // best-effort cleanup
 		return false, fmt.Errorf("write temp file: %w", err)
 	}
-	tmpFile.Close()
+	tmpFile.Close() //nolint:gosec,errcheck // error checked implicitly by rename success
 
 	// Validate YAML by re-parsing
 	var validate []TargetGroup
@@ -180,8 +180,8 @@ func writeAtomicYAML(path string, data interface{}) (bool, error) {
 	}
 
 	// Atomic rename
-	if err := os.Rename(tmpPath, path); err != nil {
-		os.Remove(tmpPath)
+	if err := os.Rename(tmpPath, path); err != nil { //nolint:gosec // path validated against targetsDir above
+		os.Remove(tmpPath) //nolint:errcheck // best-effort cleanup
 		return false, fmt.Errorf("rename temp file: %w", err)
 	}
 
@@ -205,7 +205,7 @@ func triggerPrometheusReload(reloadURL string) error {
 	if err != nil {
 		return fmt.Errorf("create reload request: %w", err)
 	}
-	resp, err := reloadHTTPClient.Do(req)
+	resp, err := reloadHTTPClient.Do(req) //nolint:gosec // URL validated above (scheme + host check)
 	if err != nil {
 		return fmt.Errorf("POST to %s: %w", reloadURL, err)
 	}

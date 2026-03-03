@@ -36,6 +36,107 @@ type SwitchLLDP struct {
 	Interfaces []InterfaceInfo
 }
 
+// extractSysDescr extracts the sysDescr label from the metric families.
+func extractSysDescr(families map[string]*dto.MetricFamily) string {
+	mf, ok := families["sysDescr"]
+	if !ok {
+		return ""
+	}
+	for _, m := range mf.GetMetric() {
+		if m.GetGauge() != nil || m.GetUntyped() != nil {
+			for _, lp := range m.GetLabel() {
+				if lp.GetName() == "sysDescr" {
+					return lp.GetValue()
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// extractLLDPNeighbors extracts all LLDP neighbor data from the metric families.
+func extractLLDPNeighbors(families map[string]*dto.MetricFamily) []LLDPNeighbor {
+	neighborMap := make(map[string]*LLDPNeighbor)
+
+	extractLLDPLabels(families, "lldpRemSysName", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
+		n.RemoteSysName = labels["lldpRemSysName"]
+	})
+	extractLLDPLabels(families, "lldpRemPortId", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
+		n.RemotePortID = labels["lldpRemPortId"]
+	})
+	extractLLDPLabels(families, "lldpRemPortDesc", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
+		n.RemotePortDesc = labels["lldpRemPortDesc"]
+	})
+	extractLLDPLabels(families, "lldpRemSysDesc", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
+		n.RemoteSysDesc = labels["lldpRemSysDesc"]
+	})
+	extractLLDPLabels(families, "lldpLocPortId", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
+		n.LocalPortID = labels["lldpLocPortId"]
+	})
+	extractLLDPLabels(families, "lldpLocPortDesc", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
+		n.LocalPortDesc = labels["lldpLocPortDesc"]
+	})
+
+	var neighbors []LLDPNeighbor
+	for _, n := range neighborMap {
+		neighbors = append(neighbors, *n)
+	}
+	return neighbors
+}
+
+// getOrCreateIF returns the InterfaceInfo for the given index, creating it if needed.
+func getOrCreateIF(ifMap map[string]*InterfaceInfo, idx string) *InterfaceInfo {
+	if iface, ok := ifMap[idx]; ok {
+		return iface
+	}
+	iface := &InterfaceInfo{Index: idx}
+	ifMap[idx] = iface
+	return iface
+}
+
+// extractInterfaces extracts IF-MIB interface information from the metric families.
+func extractInterfaces(families map[string]*dto.MetricFamily) []InterfaceInfo {
+	ifMap := make(map[string]*InterfaceInfo)
+
+	if mf, ok := families["ifDescr"]; ok {
+		for _, m := range mf.GetMetric() {
+			labels := labelMap(m)
+			if idx := labels["ifIndex"]; idx != "" {
+				getOrCreateIF(ifMap, idx).Descr = labels["ifDescr"]
+			}
+		}
+	}
+
+	if mf, ok := families["ifOperStatus"]; ok {
+		for _, m := range mf.GetMetric() {
+			labels := labelMap(m)
+			if idx := labels["ifIndex"]; idx != "" {
+				iface := getOrCreateIF(ifMap, idx)
+				if metricValue(m) == 1 {
+					iface.OperStatus = "up"
+				} else {
+					iface.OperStatus = "down"
+				}
+			}
+		}
+	}
+
+	if mf, ok := families["ifAlias"]; ok {
+		for _, m := range mf.GetMetric() {
+			labels := labelMap(m)
+			if idx := labels["ifIndex"]; idx != "" {
+				getOrCreateIF(ifMap, idx).Alias = labels["ifAlias"]
+			}
+		}
+	}
+
+	var interfaces []InterfaceInfo
+	for _, iface := range ifMap {
+		interfaces = append(interfaces, *iface)
+	}
+	return interfaces
+}
+
 // ParseSNMPResponse parses Prometheus text format response from the SNMP exporter
 // into structured LLDP and interface data.
 func ParseSNMPResponse(body []byte, switchName string) (*SwitchLLDP, error) {
@@ -45,119 +146,12 @@ func ParseSNMPResponse(body []byte, switchName string) (*SwitchLLDP, error) {
 		return nil, fmt.Errorf("parse prometheus text format: %w", err)
 	}
 
-	result := &SwitchLLDP{
-		SysName: switchName,
-	}
-
-	// Extract sysDescr
-	if mf, ok := families["sysDescr"]; ok {
-		for _, m := range mf.GetMetric() {
-			if m.GetGauge() != nil || m.GetUntyped() != nil {
-				for _, lp := range m.GetLabel() {
-					if lp.GetName() == "sysDescr" {
-						result.SysDesc = lp.GetValue()
-					}
-				}
-			}
-		}
-	}
-
-	// Extract LLDP neighbor data
-	// SNMP exporter exposes these with labels containing the LLDP info
-	neighborMap := make(map[string]*LLDPNeighbor)
-
-	// lldpRemSysName - remote system name
-	extractLLDPLabels(families, "lldpRemSysName", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
-		n.RemoteSysName = labels["lldpRemSysName"]
-	})
-
-	// lldpRemPortId - remote port ID
-	extractLLDPLabels(families, "lldpRemPortId", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
-		n.RemotePortID = labels["lldpRemPortId"]
-	})
-
-	// lldpRemPortDesc - remote port description
-	extractLLDPLabels(families, "lldpRemPortDesc", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
-		n.RemotePortDesc = labels["lldpRemPortDesc"]
-	})
-
-	// lldpRemSysDesc - remote system description
-	extractLLDPLabels(families, "lldpRemSysDesc", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
-		n.RemoteSysDesc = labels["lldpRemSysDesc"]
-	})
-
-	// lldpLocPortId - local port ID (may also help identify the local port)
-	extractLLDPLabels(families, "lldpLocPortId", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
-		n.LocalPortID = labels["lldpLocPortId"]
-	})
-
-	// lldpLocPortDesc - local port description
-	extractLLDPLabels(families, "lldpLocPortDesc", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
-		n.LocalPortDesc = labels["lldpLocPortDesc"]
-	})
-
-	for _, n := range neighborMap {
-		result.Neighbors = append(result.Neighbors, *n)
-	}
-
-	// Extract interface information from IF-MIB
-	ifMap := make(map[string]*InterfaceInfo)
-
-	// ifDescr
-	if mf, ok := families["ifDescr"]; ok {
-		for _, m := range mf.GetMetric() {
-			labels := labelMap(m)
-			idx := labels["ifIndex"]
-			if idx == "" {
-				continue
-			}
-			if _, ok := ifMap[idx]; !ok {
-				ifMap[idx] = &InterfaceInfo{Index: idx}
-			}
-			ifMap[idx].Descr = labels["ifDescr"]
-		}
-	}
-
-	// ifOperStatus - 1=up, 2=down
-	if mf, ok := families["ifOperStatus"]; ok {
-		for _, m := range mf.GetMetric() {
-			labels := labelMap(m)
-			idx := labels["ifIndex"]
-			if idx == "" {
-				continue
-			}
-			if _, ok := ifMap[idx]; !ok {
-				ifMap[idx] = &InterfaceInfo{Index: idx}
-			}
-			val := metricValue(m)
-			if val == 1 {
-				ifMap[idx].OperStatus = "up"
-			} else {
-				ifMap[idx].OperStatus = "down"
-			}
-		}
-	}
-
-	// ifAlias
-	if mf, ok := families["ifAlias"]; ok {
-		for _, m := range mf.GetMetric() {
-			labels := labelMap(m)
-			idx := labels["ifIndex"]
-			if idx == "" {
-				continue
-			}
-			if _, ok := ifMap[idx]; !ok {
-				ifMap[idx] = &InterfaceInfo{Index: idx}
-			}
-			ifMap[idx].Alias = labels["ifAlias"]
-		}
-	}
-
-	for _, iface := range ifMap {
-		result.Interfaces = append(result.Interfaces, *iface)
-	}
-
-	return result, nil
+	return &SwitchLLDP{
+		SysName:    switchName,
+		SysDesc:    extractSysDescr(families),
+		Neighbors:  extractLLDPNeighbors(families),
+		Interfaces: extractInterfaces(families),
+	}, nil
 }
 
 // extractLLDPLabels extracts LLDP neighbor data from a metric family.
