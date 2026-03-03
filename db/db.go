@@ -31,7 +31,7 @@ func Open(path string) (*DB, error) {
 
 	// Enable WAL mode for concurrent read/write
 	if _, err := sqlDB.Exec("PRAGMA journal_mode=WAL"); err != nil {
-		sqlDB.Close()
+		sqlDB.Close() //nolint:gosec,errcheck // best-effort close on init failure
 		return nil, fmt.Errorf("enable WAL mode: %w", err)
 	}
 
