@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -140,7 +141,7 @@ func extractInterfaces(families map[string]*dto.MetricFamily) []InterfaceInfo {
 // ParseSNMPResponse parses Prometheus text format response from the SNMP exporter
 // into structured LLDP and interface data.
 func ParseSNMPResponse(body []byte, switchName string) (*SwitchLLDP, error) {
-	parser := expfmt.TextParser{}
+	parser := expfmt.NewTextParser(model.UTF8Validation)
 	families, err := parser.TextToMetricFamilies(bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("parse prometheus text format: %w", err)
