@@ -41,6 +41,7 @@ type Config struct {
 	BaseTargetFiles []string         `yaml:"base_target_files"`
 	DBPath          string           `yaml:"db_path"`
 	CacheDir        string           `yaml:"cache_dir"`
+	Domain          string           `yaml:"domain"` // optional: FQDN suffix for hostname normalization
 }
 
 // SwitchConfig represents a switch definition in the config file.
