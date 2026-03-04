@@ -32,7 +32,7 @@ func NewSwitchInfoCollector(cfg *Config) *SwitchInfoCollector {
 		switchPortStatus: prometheus.NewDesc(
 			"topology_switch_port_status",
 			"Switch port operational status. 1=up, 0=down.",
-			[]string{"switch_name", "port_id", "port_desc", "connected_host"},
+			[]string{"switch_name", "port_id", "port_desc", "oper_status", "connected_host"},
 			nil,
 		),
 	}
@@ -68,15 +68,22 @@ func (c *SwitchInfoCollector) Collect(ch chan<- prometheus.Metric) {
 		)
 	}
 
-	// Switch port status metrics
+	// Switch port status metrics — dedup links to avoid duplicate label sets
+	// when a host has multiple NICs reporting identical LLDP data.
+	seen := make(map[[5]string]bool)
 	for _, link := range state.Links {
+		key := [5]string{link.From, link.FromPort, link.FromPortDesc, link.OperStatus, link.To}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
 		var status float64
 		if link.OperStatus == "up" {
 			status = 1
 		}
 		ch <- prometheus.MustNewConstMetric(
 			c.switchPortStatus, prometheus.GaugeValue, status,
-			link.From, link.FromPort, link.FromPortDesc,
+			link.From, link.FromPort, link.FromPortDesc, link.OperStatus,
 			link.To,
 		)
 	}
