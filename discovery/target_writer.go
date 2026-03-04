@@ -22,14 +22,57 @@ type TargetGroup struct {
 	Labels  map[string]string `yaml:"labels"`
 }
 
+// normalizeHostname strips the domain suffix from a hostname, returning the short name.
+// If domain is empty or the hostname doesn't end with the domain, it returns the hostname unchanged.
+func normalizeHostname(hostname, domain string) string {
+	if domain == "" || hostname == "" {
+		return hostname
+	}
+	suffix := "." + domain
+	if strings.HasSuffix(hostname, suffix) {
+		return strings.TrimSuffix(hostname, suffix)
+	}
+	return hostname
+}
+
+// buildHostMap creates a dual-keyed lookup map from LLDP-discovered hosts.
+// Each host is keyed by its full LLDP hostname and also by its normalized short name.
+// For short-name collisions, the first entry wins.
+func buildHostMap(hosts []HostConnection, domain string) map[string]*HostConnection {
+	hostMap := make(map[string]*HostConnection, len(hosts)*2)
+	for i := range hosts {
+		h := &hosts[i]
+		// Key by full LLDP hostname
+		hostMap[h.Hostname] = h
+		// Also key by short name (if different and not already taken)
+		short := normalizeHostname(h.Hostname, domain)
+		if short != "" && short != h.Hostname {
+			if _, exists := hostMap[short]; !exists {
+				hostMap[short] = h
+			}
+		}
+	}
+	return hostMap
+}
+
+// applyTopologyLabels copies topology fields from a HostConnection into target group labels.
+func applyTopologyLabels(tg *TargetGroup, host *HostConnection, source string) {
+	tg.Labels["switch_id"] = host.SwitchID
+	tg.Labels["switch_port"] = host.SwitchPort
+	tg.Labels["switch_port_index"] = host.SwitchPortIndex
+	tg.Labels["uplink_switch_l1"] = host.UplinkSwitchL1
+	tg.Labels["uplink_port_l1"] = host.UplinkPortL1
+	tg.Labels["uplink_switch_l2"] = host.UplinkSwitchL2
+	tg.Labels["uplink_port_l2"] = host.UplinkPortL2
+	tg.Labels["network_path"] = host.NetworkPath
+	tg.Labels["topology_source"] = source
+	tg.Labels["topology_updated"] = time.Now().UTC().Format(time.RFC3339)
+}
+
 // WriteEnrichedTargets reads base target files, enriches them with topology labels,
 // and writes the enriched files atomically.
 func WriteEnrichedTargets(cfg *Config, hosts []HostConnection, switches []Switch) error {
-	// Build hostname lookup map
-	hostMap := make(map[string]*HostConnection)
-	for i := range hosts {
-		hostMap[hosts[i].Hostname] = &hosts[i]
-	}
+	hostMap := buildHostMap(hosts, cfg.Domain)
 
 	targetsDir := cfg.Prometheus.TargetsDir
 	filesChanged := false
@@ -50,7 +93,7 @@ func WriteEnrichedTargets(cfg *Config, hosts []HostConnection, switches []Switch
 
 		// Enrich each target group with topology labels
 		for i := range targetGroups {
-			enrichTargetGroup(&targetGroups[i], hostMap)
+			enrichTargetGroup(&targetGroups[i], hostMap, cfg.Domain)
 		}
 
 		// Determine enriched file name: node_exporter.yml → node_enriched.yml
@@ -84,15 +127,47 @@ func WriteEnrichedTargets(cfg *Config, hosts []HostConnection, switches []Switch
 	return nil
 }
 
-// enrichTargetGroup adds topology labels to a target group based on hostname matching.
-func enrichTargetGroup(tg *TargetGroup, hostMap map[string]*HostConnection) {
+// lookupHost finds a HostConnection by trying the name directly, then normalized.
+func lookupHost(hostMap map[string]*HostConnection, name, domain string) *HostConnection {
+	if host, ok := hostMap[name]; ok {
+		return host
+	}
+	normalized := normalizeHostname(name, domain)
+	if normalized != name {
+		if host, ok := hostMap[normalized]; ok {
+			return host
+		}
+	}
+	return nil
+}
+
+// resolveParentHost applies inherited topology labels from a parent_host label.
+// Returns true if a parent was found and labels were applied.
+func resolveParentHost(tg *TargetGroup, hostMap map[string]*HostConnection, domain string) bool {
+	parentHost, ok := tg.Labels["parent_host"]
+	if !ok || parentHost == "" {
+		return false
+	}
+	host := lookupHost(hostMap, parentHost, domain)
+	if host == nil {
+		return false
+	}
+	applyTopologyLabels(tg, host, "inherited:"+host.Hostname)
+	tg.Labels["network_path"] = "vm→" + host.NetworkPath
+	return true
+}
+
+// enrichTargetGroup adds topology labels to a target group using a matching cascade:
+// 1. Direct/normalized match by hostname
+// 2. parent_host fallback (VM inherits parent's topology)
+// 3. Unknown (no match)
+func enrichTargetGroup(tg *TargetGroup, hostMap map[string]*HostConnection, domain string) {
 	if tg.Labels == nil {
 		tg.Labels = make(map[string]string)
 	}
 
 	// Try to match targets to discovered hosts
 	for _, target := range tg.Targets {
-		// Extract hostname from target (host:port or just host)
 		hostname := extractHostname(target)
 
 		// Also check the instance label
@@ -100,19 +175,15 @@ func enrichTargetGroup(tg *TargetGroup, hostMap map[string]*HostConnection) {
 			hostname = extractHostname(inst)
 		}
 
-		if host, ok := hostMap[hostname]; ok {
-			tg.Labels["switch_id"] = host.SwitchID
-			tg.Labels["switch_port"] = host.SwitchPort
-			tg.Labels["switch_port_index"] = host.SwitchPortIndex
-			tg.Labels["uplink_switch_l1"] = host.UplinkSwitchL1
-			tg.Labels["uplink_port_l1"] = host.UplinkPortL1
-			tg.Labels["uplink_switch_l2"] = host.UplinkSwitchL2
-			tg.Labels["uplink_port_l2"] = host.UplinkPortL2
-			tg.Labels["network_path"] = host.NetworkPath
-			tg.Labels["topology_source"] = host.TopologySource
-			tg.Labels["topology_updated"] = time.Now().UTC().Format(time.RFC3339)
-			return // First match wins
+		if host := lookupHost(hostMap, hostname, domain); host != nil {
+			applyTopologyLabels(tg, host, host.TopologySource)
+			return
 		}
+	}
+
+	// parent_host fallback: VM inherits parent's topology
+	if resolveParentHost(tg, hostMap, domain) {
+		return
 	}
 
 	// No match found — mark as unknown
