@@ -20,6 +20,9 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
+      - name: Go Mod Tidy
+        run: go mod tidy
+
       - name: Build
         run: make build
 
