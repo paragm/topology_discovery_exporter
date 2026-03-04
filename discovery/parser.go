@@ -71,12 +71,12 @@ func extractLLDPNeighbors(families map[string]*dto.MetricFamily) []LLDPNeighbor 
 	extractLLDPLabels(families, "lldpRemSysDesc", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
 		n.RemoteSysDesc = labels["lldpRemSysDesc"]
 	})
-	extractLLDPLabels(families, "lldpLocPortId", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
-		n.LocalPortID = labels["lldpLocPortId"]
-	})
-	extractLLDPLabels(families, "lldpLocPortDesc", neighborMap, func(n *LLDPNeighbor, labels map[string]string) {
-		n.LocalPortDesc = labels["lldpLocPortDesc"]
-	})
+	// lldpLocPortId/Desc are indexed by lldpLocPortNum only (not the remote
+	// triple-key), so we build a separate lookup and join via the shared
+	// lldpRemLocalPortNum in each neighbor key.
+	localPortID := extractLocalPortMap(families, "lldpLocPortId", "lldpLocPortId")
+	localPortDesc := extractLocalPortMap(families, "lldpLocPortDesc", "lldpLocPortDesc")
+	joinLocalPortData(neighborMap, localPortID, localPortDesc)
 
 	var neighbors []LLDPNeighbor
 	for _, n := range neighborMap {
@@ -175,6 +175,44 @@ func extractLLDPLabels(families map[string]*dto.MetricFamily, metricName string,
 			neighbors[key] = &LLDPNeighbor{}
 		}
 		setter(neighbors[key], labels)
+	}
+}
+
+// extractLocalPortMap builds a map from lldpLocPortNum to the named label value
+// for a local-port metric family (lldpLocPortId or lldpLocPortDesc).
+func extractLocalPortMap(families map[string]*dto.MetricFamily, metricName, labelName string) map[string]string {
+	result := make(map[string]string)
+	mf, ok := families[metricName]
+	if !ok {
+		return result
+	}
+	for _, m := range mf.GetMetric() {
+		labels := labelMap(m)
+		portNum := labels["lldpLocPortNum"]
+		if portNum != "" {
+			result[portNum] = labels[labelName]
+		}
+	}
+	return result
+}
+
+// joinLocalPortData enriches neighbors with local port data by matching the
+// lldpRemLocalPortNum component of each neighbor key against the lldpLocPortNum
+// keys in the local port maps.
+func joinLocalPortData(neighbors map[string]*LLDPNeighbor, portID, portDesc map[string]string) {
+	for key, n := range neighbors {
+		// The neighbor key format is "timeMark|localPortNum|remIndex".
+		parts := strings.SplitN(key, "|", 3)
+		if len(parts) < 2 {
+			continue
+		}
+		localPortNum := parts[1]
+		if v, ok := portID[localPortNum]; ok {
+			n.LocalPortID = v
+		}
+		if v, ok := portDesc[localPortNum]; ok {
+			n.LocalPortDesc = v
+		}
 	}
 }
 
