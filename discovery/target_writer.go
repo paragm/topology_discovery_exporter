@@ -166,7 +166,7 @@ func writeAtomicYAML(path string, data interface{}) (bool, error) {
 	tmpPath := tmpFile.Name()
 
 	if _, err := tmpFile.Write(newContent); err != nil {
-		tmpFile.Close() //nolint:gosec,errcheck // best-effort close on write failure
+		tmpFile.Close()    //nolint:gosec,errcheck // best-effort close on write failure
 		os.Remove(tmpPath) //nolint:gosec,errcheck // best-effort cleanup
 		return false, fmt.Errorf("write temp file: %w", err)
 	}
