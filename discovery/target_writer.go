@@ -166,7 +166,7 @@ func writeAtomicYAML(path string, data interface{}) (bool, error) {
 	tmpPath := tmpFile.Name()
 
 	if _, err := tmpFile.Write(newContent); err != nil {
-		tmpFile.Close()   //nolint:gosec,errcheck // best-effort close on write failure
+		tmpFile.Close() //nolint:gosec,errcheck // best-effort close on write failure
 		os.Remove(tmpPath) //nolint:gosec,errcheck // best-effort cleanup
 		return false, fmt.Errorf("write temp file: %w", err)
 	}
@@ -175,13 +175,13 @@ func writeAtomicYAML(path string, data interface{}) (bool, error) {
 	// Validate YAML by re-parsing
 	var validate []TargetGroup
 	if err := yaml.Unmarshal(newContent, &validate); err != nil {
-		os.Remove(tmpPath)
+		os.Remove(tmpPath) //nolint:gosec,errcheck // best-effort cleanup
 		return false, fmt.Errorf("validate YAML: %w", err)
 	}
 
 	// Atomic rename
 	if err := os.Rename(tmpPath, path); err != nil { //nolint:gosec // path validated against targetsDir above
-		os.Remove(tmpPath) //nolint:errcheck // best-effort cleanup
+		os.Remove(tmpPath) //nolint:gosec,errcheck // best-effort cleanup
 		return false, fmt.Errorf("rename temp file: %w", err)
 	}
 
