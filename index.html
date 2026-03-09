@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Topology Discovery Exporter</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --sidebar-width:260px;
+    --bg-sidebar:#1a1a2e;
+    --bg-sidebar-hover:#16213e;
+    --accent:#0ea5e9;
+    --accent-dark:#0284c7;
+    --bg-main:#ffffff;
+    --bg-section:#f8fafc;
+    --text-primary:#1e293b;
+    --text-secondary:#475569;
+    --text-sidebar:#cbd5e1;
+    --text-sidebar-active:#ffffff;
+    --border:#e2e8f0;
+    --code-bg:#f1f5f9;
+    --table-stripe:#f8fafc;
+    --font-stack:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --font-mono:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
+  }
+  html{scroll-behavior:smooth}
+  body{font-family:var(--font-stack);color:var(--text-primary);line-height:1.6;background:var(--bg-main)}
+
+  /* Sidebar */
+  .sidebar{
+    position:fixed;top:0;left:0;bottom:0;width:var(--sidebar-width);
+    background:var(--bg-sidebar);color:var(--text-sidebar);
+    display:flex;flex-direction:column;z-index:100;
+    overflow-y:auto;
+  }
+  .sidebar-header{padding:28px 24px 20px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .sidebar-header h1{font-size:1.15rem;font-weight:700;color:#fff;line-height:1.3;letter-spacing:-.01em}
+  .sidebar-header p{font-size:.75rem;color:var(--text-sidebar);margin-top:6px;opacity:.7}
+  .sidebar-nav{flex:1;padding:16px 0}
+  .sidebar-nav a{
+    display:block;padding:9px 24px;font-size:.875rem;
+    color:var(--text-sidebar);text-decoration:none;
+    border-left:3px solid transparent;transition:all .15s ease;
+  }
+  .sidebar-nav a:hover{color:var(--text-sidebar-active);background:var(--bg-sidebar-hover);border-left-color:var(--accent)}
+  .sidebar-footer{padding:18px 24px;border-top:1px solid rgba(255,255,255,.08);font-size:.75rem}
+  .sidebar-footer a{color:var(--accent);text-decoration:none}
+  .sidebar-footer a:hover{text-decoration:underline}
+
+  /* Mobile toggle */
+  .menu-toggle{
+    display:none;position:fixed;top:14px;left:14px;z-index:200;
+    background:var(--bg-sidebar);color:#fff;border:none;border-radius:6px;
+    width:40px;height:40px;font-size:1.3rem;cursor:pointer;
+    align-items:center;justify-content:center;
+  }
+
+  /* Main */
+  .main{margin-left:var(--sidebar-width);min-height:100vh}
+  .hero{
+    background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);
+    color:#fff;padding:72px 56px 56px;
+  }
+  .hero h1{font-size:2.25rem;font-weight:700;letter-spacing:-.02em}
+  .hero p{font-size:1.1rem;color:#94a3b8;margin-top:12px;max-width:640px;line-height:1.7}
+  .hero-badges{margin-top:20px;display:flex;gap:10px;flex-wrap:wrap}
+  .badge{
+    display:inline-block;padding:5px 14px;border-radius:20px;font-size:.8rem;font-weight:500;
+    background:rgba(14,165,233,.15);color:var(--accent);border:1px solid rgba(14,165,233,.25);
+  }
+  .content{padding:0 56px 72px}
+  section{padding-top:56px}
+  section h2{
+    font-size:1.5rem;font-weight:700;color:var(--text-primary);
+    padding-bottom:12px;border-bottom:2px solid var(--accent);
+    margin-bottom:28px;letter-spacing:-.01em;
+  }
+  section h3{font-size:1.1rem;font-weight:600;color:var(--text-primary);margin:28px 0 12px}
+  p{margin-bottom:14px;color:var(--text-secondary)}
+
+  /* Lists */
+  ul.feature-list{list-style:none;display:grid;gap:14px;margin-bottom:8px}
+  ul.feature-list li{
+    padding:16px 20px;background:var(--bg-section);border-radius:8px;
+    border-left:3px solid var(--accent);font-size:.925rem;color:var(--text-secondary);line-height:1.6;
+  }
+  ul.feature-list li strong{color:var(--text-primary)}
+
+  /* Tables */
+  .table-wrap{overflow-x:auto;margin-bottom:8px;border-radius:8px;border:1px solid var(--border)}
+  table{width:100%;border-collapse:collapse;font-size:.875rem}
+  thead{background:var(--bg-sidebar);color:#fff}
+  th{padding:12px 16px;text-align:left;font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+  td{padding:11px 16px;border-top:1px solid var(--border);color:var(--text-secondary);vertical-align:top}
+  tbody tr:nth-child(even){background:var(--table-stripe)}
+  tbody tr:hover{background:#eef6ff}
+  td code,p code,li code{
+    background:var(--code-bg);padding:2px 7px;border-radius:4px;
+    font-family:var(--font-mono);font-size:.82em;color:#0f172a;
+  }
+
+  /* Code blocks */
+  pre{
+    background:#0f172a;color:#e2e8f0;padding:24px;border-radius:8px;
+    overflow-x:auto;font-family:var(--font-mono);font-size:.84rem;
+    line-height:1.7;margin-bottom:8px;
+  }
+  pre code{background:none;padding:0;color:inherit;font-size:inherit}
+  .code-label{
+    display:inline-block;background:var(--accent);color:#fff;
+    font-size:.7rem;font-weight:600;padding:3px 10px;border-radius:4px 4px 0 0;
+    text-transform:uppercase;letter-spacing:.05em;margin-bottom:0;
+  }
+
+  /* Architecture diagram */
+  .arch-diagram{
+    background:#0f172a;color:#7dd3fc;padding:24px 28px;border-radius:8px;
+    overflow-x:auto;font-family:var(--font-mono);font-size:.82rem;line-height:1.5;
+    margin-bottom:8px;white-space:pre;
+  }
+
+  /* Build targets */
+  .build-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:8px}
+  .build-card{
+    padding:14px 18px;background:var(--bg-section);border-radius:8px;
+    border:1px solid var(--border);font-family:var(--font-mono);font-size:.85rem;color:var(--text-primary);
+  }
+  .build-card span{display:block;font-family:var(--font-stack);font-size:.78rem;color:var(--text-secondary);margin-top:4px}
+
+  /* Steps */
+  .steps{display:grid;gap:12px;margin-bottom:8px}
+  .step{
+    padding:16px 20px;background:var(--bg-section);border-radius:8px;
+    border:1px solid var(--border);font-size:.9rem;color:var(--text-secondary);
+  }
+  .step code{font-size:.82em}
+
+  /* Responsive */
+  @media(max-width:860px){
+    .sidebar{transform:translateX(-100%);transition:transform .25s ease}
+    .sidebar.open{transform:translateX(0)}
+    .menu-toggle{display:flex}
+    .main{margin-left:0}
+    .hero{padding:60px 28px 40px}
+    .content{padding:0 20px 56px}
+  }
+</style>
+</head>
+<body>
+
+<button class="menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')" aria-label="Toggle menu">&#9776;</button>
+
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <h1>Topology Discovery Exporter</h1>
+    <p>Prometheus SNMP/LLDP topology exporter</p>
+  </div>
+  <div class="sidebar-nav">
+    <a href="#overview">Overview</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#features">Features</a>
+    <a href="#metrics">Metrics</a>
+    <a href="#installation">Installation</a>
+    <a href="#configuration">Configuration</a>
+    <a href="#endpoints">Endpoints</a>
+    <a href="#building">Building</a>
+  </div>
+  <div class="sidebar-footer">
+    <a href="https://github.com/paragm/topology_discovery_exporter">GitHub Repository</a>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="hero">
+    <h1>Topology Discovery Exporter</h1>
+    <p>Prometheus exporter that discovers network topology via SNMP/LLDP and enriches Prometheus target files with topology labels.</p>
+    <div class="hero-badges">
+      <span class="badge">Prometheus</span>
+      <span class="badge">SNMP / LLDP</span>
+      <span class="badge">Go</span>
+      <span class="badge">:10042</span>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- Overview -->
+    <section id="overview">
+      <h2>Overview</h2>
+      <ul class="feature-list">
+        <li><strong>Exposes discovery metrics</strong> &mdash; run status, switch/host/link counts, per-switch errors</li>
+        <li><strong>Enriches Prometheus targets</strong> &mdash; adds <code>switch_id</code>, <code>switch_port</code>, <code>uplink_switch_l1</code>, <code>network_path</code> labels to <code>file_sd</code> target files</li>
+        <li><strong>Persists topology</strong> &mdash; stores discovered topology in SQLite for history and change detection</li>
+        <li><strong>Triggers Prometheus reload</strong> &mdash; automatically reloads Prometheus when target files change</li>
+        <li><strong>Periodically polls network switches</strong> &mdash; via <code>snmp_exporter</code>, parses LLDP neighbor data, builds a topology graph</li>
+      </ul>
+    </section>
+
+    <!-- Architecture -->
+    <section id="architecture">
+      <h2>Architecture</h2>
+      <p>The exporter sits between your network switches and Prometheus, using <code>snmp_exporter</code> as an SNMP proxy to gather LLDP neighbor tables and build a complete topology graph.</p>
+      <div class="arch-diagram">&#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;     SNMP      &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;     HTTP      &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;
+&#x2502;  Switches   &#x2502;&#x25C4;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2502; snmp_exporter  &#x2502;&#x25C4;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2502;  topology    &#x2502;
+&#x2502; (LLDP data) &#x2502;               &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;               &#x2502;  _discovery  &#x2502;
+&#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;                                                &#x2502;  _exporter   &#x2502;
+                                                               &#x2502;              &#x2502;
+                              &#x250C;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2510;  file_sd write &#x2502;              &#x2502;
+                              &#x2502;  Prometheus   &#x2502;&#x25C4;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2502;              &#x2502;
+                              &#x2502;  (targets/)   &#x2502;   POST reload  &#x2502;              &#x2502;
+                              &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;                &#x2514;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2500;&#x2518;</div>
+    </section>
+
+    <!-- Features -->
+    <section id="features">
+      <h2>Features</h2>
+      <ul class="feature-list">
+        <li><strong>SNMP/LLDP Discovery</strong> &mdash; Polls switches through snmp_exporter, parsing LLDP MIB data to identify neighbors, ports, and connections</li>
+        <li><strong>Topology Graph Construction</strong> &mdash; Builds a directed graph of switch-to-switch and host-to-switch connections, computing network paths and uplink chains</li>
+        <li><strong>Target File Enrichment</strong> &mdash; Reads Prometheus <code>file_sd</code> target files and injects topology labels (<code>switch_id</code>, <code>switch_port</code>, <code>uplink_switch_l1</code>, <code>network_path</code>)</li>
+        <li><strong>SQLite Persistence</strong> &mdash; Stores discovered topology in a local SQLite database for historical queries and change detection across restarts</li>
+        <li><strong>Automatic Prometheus Reload</strong> &mdash; Posts to the Prometheus <code>/-/reload</code> endpoint when enriched target files are written, ensuring label changes take effect immediately</li>
+        <li><strong>Per-Switch Error Tracking</strong> &mdash; Records and exposes SNMP errors per switch so you can identify unreachable or misconfigured devices</li>
+      </ul>
+    </section>
+
+    <!-- Metrics -->
+    <section id="metrics">
+      <h2>Metrics</h2>
+      <p>All metrics are exposed on <code>/metrics</code> (default <code>:10042</code>).</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Metric</th><th>Type</th><th>Labels</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>topology_discovery_up</code></td><td>Gauge</td><td>&mdash;</td><td>1 if last discovery succeeded, 0 if failed</td></tr>
+            <tr><td><code>topology_discovery_last_success_timestamp</code></td><td>Gauge</td><td>&mdash;</td><td>Unix timestamp of last successful run</td></tr>
+            <tr><td><code>topology_discovery_last_duration_seconds</code></td><td>Gauge</td><td>&mdash;</td><td>Duration of last discovery run</td></tr>
+            <tr><td><code>topology_discovery_runs_total</code></td><td>Counter</td><td>&mdash;</td><td>Total number of discovery runs</td></tr>
+            <tr><td><code>topology_discovery_errors_total</code></td><td>Counter</td><td><code>switch</code></td><td>Errors per switch</td></tr>
+            <tr><td><code>topology_discovery_switches_discovered</code></td><td>Gauge</td><td>&mdash;</td><td>Switches discovered in last run</td></tr>
+            <tr><td><code>topology_discovery_hosts_discovered</code></td><td>Gauge</td><td>&mdash;</td><td>Hosts discovered in last run</td></tr>
+            <tr><td><code>topology_discovery_links_discovered</code></td><td>Gauge</td><td>&mdash;</td><td>Links discovered in last run</td></tr>
+            <tr><td><code>topology_discovery_target_files_written_total</code></td><td>Counter</td><td>&mdash;</td><td>Total enriched target file writes</td></tr>
+            <tr><td><code>topology_switch_info</code></td><td>Gauge</td><td><code>switch_name</code>, <code>switch_ip</code>, <code>switch_role</code>, <code>sys_desc</code>, <code>uplink_switch</code></td><td>Per-switch identity (always 1)</td></tr>
+            <tr><td><code>topology_host_connection_info</code></td><td>Gauge</td><td><code>hostname</code>, <code>switch_id</code>, <code>switch_port</code>, <code>switch_port_index</code>, <code>uplink_switch_l1</code>, <code>topology_source</code></td><td>Per-host connection (always 1)</td></tr>
+            <tr><td><code>topology_switch_port_status</code></td><td>Gauge</td><td><code>switch_name</code>, <code>port_id</code>, <code>port_desc</code>, <code>connected_host</code></td><td>Port status (1=up, 0=down)</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Installation -->
+    <section id="installation">
+      <h2>Installation</h2>
+
+      <h3>From Source</h3>
+      <div class="steps">
+        <div class="step"><code>git clone https://github.com/paragm/topology_discovery_exporter.git</code></div>
+        <div class="step"><code>cd topology_discovery_exporter</code></div>
+        <div class="step"><code>make build</code></div>
+        <div class="step"><code>sudo make install</code></div>
+      </div>
+
+      <h3>Systemd Service</h3>
+      <div class="steps">
+        <div class="step"><code>sudo cp examples/systemd/topology_discovery_exporter.service /etc/systemd/system/</code></div>
+        <div class="step"><code>sudo cp examples/systemd/topology_discovery_exporter.env /etc/default/topology_discovery_exporter</code></div>
+        <div class="step"><code>sudo cp examples/config.yml.example /opt/topology/config.yml</code></div>
+        <div class="step"><code>sudo systemctl daemon-reload</code></div>
+        <div class="step"><code>sudo systemctl enable --now topology_discovery_exporter</code></div>
+      </div>
+    </section>
+
+    <!-- Configuration -->
+    <section id="configuration">
+      <h2>Configuration</h2>
+
+      <h3>CLI Flags</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>-web.listen-address</code></td><td><code>:10042</code></td><td>Address to listen on for metrics</td></tr>
+            <tr><td><code>-config.file</code></td><td><code>/opt/topology/config.yml</code></td><td>Path to configuration file</td></tr>
+            <tr><td><code>-discovery.interval</code></td><td><code>15m</code></td><td>Interval between discovery runs (min: 30s)</td></tr>
+            <tr><td><code>-log.level</code></td><td><code>info</code></td><td>Log level: debug, info, warn, error</td></tr>
+            <tr><td><code>-version</code></td><td>&mdash;</td><td>Print version and exit</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>Environment Variables</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Variable</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>PORT</code></td><td>Override listen port</td></tr>
+            <tr><td><code>LOG_LEVEL</code></td><td>Override log level</td></tr>
+            <tr><td><code>CONFIG_FILE</code></td><td>Override config file path</td></tr>
+            <tr><td><code>DISCOVERY_INTERVAL</code></td><td>Override discovery interval</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>YAML Configuration File</h3>
+      <span class="code-label">config.yml</span>
+      <pre><code>snmp_exporter_url: http://127.0.0.1:9116
+snmp_module: lldp_topology
+snmp_auth: my_snmp_profile
+
+switches:
+  - name: core-sw01
+    address: 192.168.0.1
+    role: core
+  - name: access-sw01
+    address: 192.168.0.10
+    role: access
+
+prometheus:
+  reload_url: http://127.0.0.1:9090/-/reload
+  targets_dir: /etc/prometheus/targets
+
+base_target_files:
+  - /etc/prometheus/targets/nodes.yml
+
+db_path: /var/lib/topology/topology.db
+cache_dir: /var/lib/topology/cache</code></pre>
+    </section>
+
+    <!-- Endpoints -->
+    <section id="endpoints">
+      <h2>Endpoints</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Path</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>/metrics</code></td><td>Prometheus metrics</td></tr>
+            <tr><td><code>/api/v1/topology</code></td><td>JSON topology state</td></tr>
+            <tr><td><code>/-/healthy</code></td><td>Health check</td></tr>
+            <tr><td><code>/-/ready</code></td><td>Readiness check</td></tr>
+            <tr><td><code>/</code></td><td>Landing page</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Building -->
+    <section id="building">
+      <h2>Building</h2>
+      <div class="build-grid">
+        <div class="build-card">make build<span>Build for current platform</span></div>
+        <div class="build-card">make build-linux<span>Cross-compile for Linux</span></div>
+        <div class="build-card">make test<span>Run test suite</span></div>
+        <div class="build-card">make lint<span>Run linters</span></div>
+        <div class="build-card">make coverage<span>Generate coverage report</span></div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+</body>
+</html>
