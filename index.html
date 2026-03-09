@@ -61,6 +61,7 @@
   .hero{
     background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);
     color:#fff;padding:72px 56px 56px;
+    position:sticky;top:0;z-index:50;
   }
   .hero h1{font-size:2.25rem;font-weight:700;letter-spacing:-.02em}
   .hero p{font-size:1.1rem;color:#94a3b8;margin-top:12px;max-width:640px;line-height:1.7}
@@ -136,6 +137,30 @@
   }
   .step code{font-size:.82em}
 
+  /* Dashboard placeholder */
+  .dashboard-placeholder{
+    border:2px dashed var(--border);border-radius:12px;
+    background:var(--bg-section);padding:48px 24px;text-align:center;
+    color:var(--text-secondary);position:relative;
+    box-shadow:0 2px 8px rgba(0,0,0,.06);
+  }
+  .dashboard-placeholder .placeholder-icon{
+    font-size:3rem;display:block;margin-bottom:16px;opacity:.4;
+  }
+  .dashboard-placeholder p{margin-bottom:8px}
+  .dashboard-placeholder img{
+    max-width:100%;border-radius:8px;display:block;margin:0 auto;
+  }
+  .dashboard-placeholder .placeholder-hint{
+    font-size:.82rem;color:var(--text-secondary);opacity:.7;margin-top:12px;
+  }
+
+  /* Port link */
+  a.port-link{color:var(--accent);text-decoration:none}
+  a.port-link:hover{text-decoration:underline}
+  .badge a.port-link{color:inherit;text-decoration:none}
+  .badge a.port-link:hover{text-decoration:underline}
+
   /* Responsive */
   @media(max-width:860px){
     .sidebar{transform:translateX(-100%);transition:transform .25s ease}
@@ -165,6 +190,7 @@
     <a href="#configuration">Configuration</a>
     <a href="#endpoints">Endpoints</a>
     <a href="#building">Building</a>
+    <a href="#dashboard">Dashboard</a>
   </div>
   <div class="sidebar-footer">
     <a href="https://github.com/paragm/topology_discovery_exporter">GitHub Repository</a>
@@ -179,7 +205,7 @@
       <span class="badge">Prometheus</span>
       <span class="badge">SNMP / LLDP</span>
       <span class="badge">Go</span>
-      <span class="badge">:10042</span>
+      <span class="badge"><a class="port-link" href="https://github.com/prometheus/prometheus/wiki/Default-port-allocations">:10042</a></span>
     </div>
   </div>
 
@@ -228,7 +254,7 @@
     <!-- Metrics -->
     <section id="metrics">
       <h2>Metrics</h2>
-      <p>All metrics are exposed on <code>/metrics</code> (default <code>:10042</code>).</p>
+      <p>All metrics are exposed on <code>/metrics</code> (default <a class="port-link" href="https://github.com/prometheus/prometheus/wiki/Default-port-allocations"><code>:10042</code></a>).</p>
       <div class="table-wrap">
         <table>
           <thead>
@@ -285,7 +311,7 @@
             <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
           </thead>
           <tbody>
-            <tr><td><code>-web.listen-address</code></td><td><code>:10042</code></td><td>Address to listen on for metrics</td></tr>
+            <tr><td><code>-web.listen-address</code></td><td><a class="port-link" href="https://github.com/prometheus/prometheus/wiki/Default-port-allocations"><code>:10042</code></a></td><td>Address to listen on for metrics</td></tr>
             <tr><td><code>-config.file</code></td><td><code>/opt/topology/config.yml</code></td><td>Path to configuration file</td></tr>
             <tr><td><code>-discovery.interval</code></td><td><code>15m</code></td><td>Interval between discovery runs (min: 30s)</td></tr>
             <tr><td><code>-log.level</code></td><td><code>info</code></td><td>Log level: debug, info, warn, error</td></tr>
@@ -362,6 +388,18 @@ cache_dir: /var/lib/topology/cache</code></pre>
         <div class="build-card">make test<span>Run test suite</span></div>
         <div class="build-card">make lint<span>Run linters</span></div>
         <div class="build-card">make coverage<span>Generate coverage report</span></div>
+      </div>
+    </section>
+
+    <!-- Dashboard -->
+    <section id="dashboard">
+      <h2>Dashboard</h2>
+      <p>Grafana dashboard displaying Topology Discovery Exporter metrics.</p>
+      <div class="dashboard-placeholder">
+        <span class="placeholder-icon">&#x1F4CA;</span>
+        <p>Dashboard screenshot — add <code>dashboard.png</code> to this branch</p>
+        <img src="dashboard.png" alt="Grafana dashboard displaying Topology Discovery Exporter metrics">
+        <p class="placeholder-hint">Place a dashboard.png file in the gh-pages branch root to display it here.</p>
       </div>
     </section>
 
